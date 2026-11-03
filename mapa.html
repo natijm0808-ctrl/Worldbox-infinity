@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Mapa do Mundo - WorldBox Infinity</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #1a1a1a; }
+  
+  #map-container {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    position: relative;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* O SEGREDO ESTÁ AQUI: Canvas sem width/height fixos no CSS, para escalar infinito */
+  #map-canvas {
+    image-rendering: pixelated;
+    transform-origin: center center;
+    /* Sem transition no transform! Se tiver transition, o arrastar (pan) fica lagado e bugado */
+    width: 256px; 
+    height: 256px;
+  }
+
+  /* UI Flutuante */
+  #ui {
+    position: fixed; inset: 0; pointer-events: none; z-index: 10;
+    font-family: 'Press Start 2P', monospace; color: #fff;
+    display: flex; flex-direction: column; justify-content: space-between;
+    padding: 20px;
+  }
+
+  #top-bar { display: flex; justify-content: space-between; align-items: flex-start; }
+  
+  #info-panel {
+    background: rgba(0,0,0,0.7); padding: 10px; border: 2px solid #555;
+    font-size: 10px; line-height: 1.5; pointer-events: auto;
+    max-width: 250px;
+  }
+  #info-panel input {
+    background: #000; border: 1px solid #777; color: #fff;
+    font-family: inherit; font-size: 10px; padding: 5px; width: 100%; margin-top: 5px;
+  }
+
+  #bottom-bar { display: flex; justify-content: center; gap: 20px; pointer-events: auto; }
+  
+  .zoom-btn {
+    width: 60px; height: 60px;
+    background: rgba(255,255,255,0.2); border: 2px solid #fff; border-radius: 50%;
+    color: #fff; font-family: inherit; font-size: 20px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    user-select: none;
+  }
+  .zoom-btn:active { background: rgba(255,255,255,0.5); }
+
+  #btn-back {
+    position: fixed; bottom: 20px; left: 20px; padding: 15px;
+    background: #aa3333; border: 2px solid #fff; color: #fff;
+    font-family: inherit; font-size: 10px; pointer-events: auto; cursor: pointer;
+    z-index: 20;
+  }
+
+  #legend {
+    position: fixed; bottom: 20px; right: 20px;
+    background: rgba(0,0,0,0.7); border: 2px solid #555; padding: 10px;
+    font-size: 8px; pointer-events: auto; display: flex; flex-direction: column; gap: 5px;
+  }
+  .leg-item { display: flex; align-items: center; gap: 8px; }
+  .color-box { width: 12px; height: 12px; border: 1px solid #000; }
+
+</style>
+</head>
+<body>
+
+<div id="map-container">
+  <canvas id="map-canvas"></canvas>
+</div>
+
+<div id="ui">
+  <div id="top-bar">
+    <div id="info-panel">
+      Nome do Mundo:
+      <input type="text" id="seed-input" placeholder="Digite a seed">
+      <div style="margin-top:10px; font-size:8px; color:#aaa;">Arraste para mover. Use + e - para Zoom.</div>
+    </div>
+  </div>
+  
+  <div id="bottom-bar">
+    <div class="zoom-btn" id="btn-zoom-out">-</div>
+    <div class="zoom-btn" id="btn-zoom-in">+</div>
+  </div>
+</div>
+
+<button id="btn-back">Voltar</button>
+
+<div id="legend">
+  <div class="leg-item"><div class="color-box" style="background:#5ca845;"></div> Grama</div>
+  <div class="leg-item"><div class="color-box" style="background:#7a5c3a;"></div> Terra</div>
+  <div class="leg-item"><div class="color-box" style="background:#3a79bd;"></div> Água</div>
+  <div class="leg-item"><div class="color-box" style="background:#888888;"></div> Pedra</div>
+</div>
+
+<script>
+  function hashSeed(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) { hash = (hash << 5) - hash + str.charCodeAt(i); hash |= 0; }
+    return Math.abs(hash);
+  }
+
+  function getHeight(x, z, seed) {
+    const nx = (x * 0.05) + (seed % 1000); 
+    const nz = (z * 0.05) + (seed % 1000);
+    let h = Math.sin(nx) * 2 + Math.cos(nz) * 2 + Math.sin((nx + nz) * 1.5) * 1.5;
+    h = Math.floor(4 + h);
+    return Math.max(1, Math.min(12, h));
+  }
+
+  function getWaterLevel(x, z, currentHeight, seed) {
+    if (currentHeight > 4) return -1;
+    const nx = (x * 0.03) + (seed % 500); 
+    const nz = (z * 0.03) + (seed % 500);
+    const riverNoise = Math.sin(nx) + Math.cos(nz);
+    if (riverNoise > -0.1 && riverNoise < 0.1) {
+      const waterLevel = 4; 
+      if (currentHeight < waterLevel) return waterLevel;
+    }
+    return -1; 
+  }
+
+  const canvas = document.getElementById('map-canvas');
+  const ctx = canvas.getContext('2d');
+  const MAP_SIZE = 256; // Resolução nativa do mapa
+  canvas.width = MAP_SIZE;
+  canvas.height = MAP_SIZE;
+
+  // Variáveis de Estado
+  let currentScale = 1;
+  const MIN_SCALE = 0.5;
+  const MAX_SCALE = 20; // Aumentei o máximo pra ficar GIGANTE
+  let panX = 0, panY = 0;
+
+  function updateCanvasTransform() {
+    canvas.style.transform = `translate(${panX}px, ${panY}px) scale(${currentScale})`;
+  }
+
+  function drawMap(seedName) {
+    const seed = hashSeed(seedName);
+    const imageData = ctx.createImageData(MAP_SIZE, MAP_SIZE);
+
+    for (let x = 0; x < MAP_SIZE; x++) {
+      for (let z = 0; z < MAP_SIZE; z++) {
+        const h = getHeight(x - MAP_SIZE/2, z - MAP_SIZE/2, seed);
+        const waterY = getWaterLevel(x - MAP_SIZE/2, z - MAP_SIZE/2, h, seed);
+        
+        let r, g, b;
+        if (waterY !== -1) { r = 58; g = 121; b = 189; }
+        else if (h > 7) { r = 136; g = 136; b = 136; }
+        else if (h > 5) { r = 122; g = 92; b = 58; }
+        else { r = 92; g = 168; b = 69; }
+
+        const index = (x + z * MAP_SIZE) * 4;
+        imageData.data[index] = r;
+        imageData.data[index + 1] = g;
+        imageData.data[index + 2] = b;
+        imageData.data[index + 3] = 255;
+      }
+    }
+    ctx.putImageData(imageData, 0, 0);
+  }
+
+  // --- Lógica de Arrastar (Pan) ---
+  let isDragging = false;
+  let dragStartX = 0, dragStartY = 0;
+
+  const container = document.getElementById('map-container');
+
+  container.addEventListener('pointerdown', (e) => {
+    isDragging = true;
+    dragStartX = e.clientX - panX;
+    dragStartY = e.clientY - panY;
+  });
+
+  container.addEventListener('pointermove', (e) => {
+    if (!isDragging) return;
+    panX = e.clientX - dragStartX;
+    panY = e.clientY - dragStartY;
+    updateCanvasTransform();
+  });
+
+  container.addEventListener('pointerup', () => { isDragging = false; });
+  container.addEventListener('pointercancel', () => { isDragging = false; });
+
+  // --- Lógica dos Botões de Zoom ---
+  document.getElementById('btn-zoom-out').onclick = () => {
+    if (currentScale > MIN_SCALE) {
+      currentScale -= 1;
+      if (currentScale < MIN_SCALE) currentScale = MIN_SCALE;
+      updateCanvasTransform();
+    }
+  };
+
+  document.getElementById('btn-zoom-in').onclick = () => {
+    if (currentScale < MAX_SCALE) {
+      currentScale += 1;
+      if (currentScale > MAX_SCALE) currentScale = MAX_SCALE;
+      updateCanvasTransform();
+    }
+  };
+
+  // --- Lógica do Pinch (Dedos na tela) ---
+  let initialDist = 0;
+  let initialScale = 1;
+
+  container.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 2) {
+      initialDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+      initialScale = currentScale;
+    }
+  }, { passive: false });
+
+  container.addEventListener('touchmove', (e) => {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+      const factor = dist / initialDist;
+      
+      let newScale = initialScale * factor;
+      if (newScale < MIN_SCALE) newScale = MIN_SCALE;
+      if (newScale > MAX_SCALE) newScale = MAX_SCALE;
+      
+      currentScale = newScale;
+      updateCanvasTransform();
+    }
+  }, { passive: false });
+
+  // Inicialização
+  const seedInput = document.getElementById('seed-input');
+  const config = JSON.parse(localStorage.getItem('worldConfig'));
+  const startName = config ? config.name : "New World_";
+  seedInput.value = startName;
+
+  // Começa com uma escala boa para preencher a tela do celular
+  currentScale = window.innerWidth / MAP_SIZE;
+  if (currentScale < 1) currentScale = 1; 
+  updateCanvasTransform();
+  drawMap(startName);
+
+  seedInput.addEventListener('input', (e) => {
+    drawMap(e.target.value || "Vazio");
+  });
+
+  document.getElementById('btn-back').onclick = () => {
+    window.location.href = 'index.html';
+  };
+</script>
+</body>
+</html>
