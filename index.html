@@ -281,80 +281,71 @@ document.getElementById('btn-webgpu').onclick = () => {
     }, 2500); 
   });
 </script>
- <!-- SCRIPT DA MÚSICA DE FUNDO (Web Audio API) -->
+ <!-- SCRIPT DA MÚSICA DE FUNDO (Consertado) -->
 <script>
   document.addEventListener('DOMContentLoaded', () => {
-    // Só vai rodar a música depois que o Three.js terminar de configurar (que é o evento worldReady)
-    document.addEventListener('worldReady', () => {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    let audioCtx;
+    let musicStarted = false;
+
+    const chords = [
+      [261.63, 329.63, 392.00], // C
+      [220.00, 261.63, 329.63], // Am
+      [174.61, 220.00, 261.63], // F
+      [196.00, 246.94, 293.66]  // G
+    ];
+
+    let currentChord = 0;
+    const bpm = 60; 
+    const beatDuration = 60 / bpm;
+    const chordDuration = beatDuration * 4;
+
+    function playNote(frequency, time, duration) {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
       
-      // Navegadores bloqueiam áudio automático até o usuário interagir.
-      // Então a gente cria o AudioContext, mas ele pode ficar suspenso até um clique.
-      const AudioContext = window.AudioContext || window.webkitAudioContext;
-      const audioCtx = new AudioContext();
+      osc.type = 'sine';
+      osc.frequency.value = frequency;
+      
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      
+      gain.gain.setValueAtTime(0, time);
+      gain.gain.linearRampToValueAtTime(0.08, time + 0.1); 
+      gain.gain.exponentialRampToValueAtTime(0.001, time + duration);
+      
+      osc.start(time);
+      osc.stop(time + duration);
+    }
 
-      // Função pra tocar uma nota de piano
-      function playNote(frequency, time, duration) {
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        
-        osc.type = 'sine'; // Som suave de piano/sintetizador
-        osc.frequency.value = frequency;
-        
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        
-        // Envelope de volume (fade in e fade out pra não estalar)
-        gain.gain.setValueAtTime(0, time);
-        gain.gain.linearRampToValueAtTime(0.1, time + 0.1); // Volume máximo de 0.1 (bem baixinho)
-        gain.gain.exponentialRampToValueAtTime(0.001, time + duration);
-        
-        osc.start(time);
-        osc.stop(time + duration);
-      }
+    function playNextChord() {
+      if (!audioCtx || audioCtx.state === 'suspended') return;
 
-      // Uma progressão de acordes calma (Dó Maior, Lá Menor, Fá Maior, Sol Maior)
-      const chords = [
-        [261.63, 329.63, 392.00], // C
-        [220.00, 261.63, 329.63], // Am
-        [174.61, 220.00, 261.63], // F
-        [196.00, 246.94, 293.66]  // G
-      ];
+      const now = audioCtx.currentTime;
+      const chord = chords[currentChord];
 
-      let currentChord = 0;
-      const bpm = 60; // Lento
-      const beatDuration = 60 / bpm;
-      const chordDuration = beatDuration * 4; // 4 segundos por acorde
+      chord.forEach((freq, index) => {
+        playNote(freq, now + (index * 0.2), chordDuration);
+      });
 
-      function playNextChord() {
-        if (audioCtx.state === 'suspended') {
-          audioCtx.resume(); // Tenta acordar o áudio
-        }
+      currentChord = (currentChord + 1) % chords.length;
+    }
 
-        const now = audioCtx.currentTime;
-        const chord = chords[currentChord];
-
-        // Toca as 3 notas do acorde com um pequeno atraso (arpejo)
-        chord.forEach((freq, index) => {
-          playNote(freq, now + (index * 0.2), chordDuration);
-        });
-
-        currentChord = (currentChord + 1) % chords.length;
-      }
-
-      // Inicia a música após 1 segundo do menu aparecer
-      setTimeout(() => {
+    function startMusic() {
+      if (musicStarted) return;
+      
+      audioCtx = new AudioContext();
+      audioCtx.resume().then(() => {
+        musicStarted = true;
         playNextChord();
         setInterval(playNextChord, chordDuration * 1000);
-      }, 1000);
-      
-      // Tenta tocar assim que o usuário tocar na tela (caso o navegador bloqueie)
-      document.addEventListener('touchstart', () => {
-        if (audioCtx.state === 'suspended') {
-          audioCtx.resume();
-        }
-      }, { once: true });
+        console.log("Música iniciada!");
+      });
+    }
 
-    });
+    // O SEGREDO: Só inicia a música no PRIMEIRO TOQUE na tela
+    document.body.addEventListener('touchstart', startMusic, { once: true });
+    document.body.addEventListener('mousedown', startMusic, { once: true });
   });
 </script>
 </body>
