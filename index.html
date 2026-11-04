@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>WorldBox Infinity</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+  canvas#bg { display: block; position: absolute; top: 0; left: 0; z-index: 1; }
+
+  /* ---- SPLASH SCREEN ---- */
+  #splash-screen {
+    position: fixed; inset: 0; z-index: 9999;
+    background: #5c6b7a; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    transition: opacity 1s ease-in-out;
+  }
+  #moon {
+    width: 120px; height: 120px; border-radius: 50%;
+    background: #f0f0f0; box-shadow: 0 0 30px rgba(255, 255, 255, 0.3);
+    position: relative; margin-bottom: 40px; animation: floatMoon 4s infinite ease-in-out;
+  }
+  #moon::before { content: ''; position: absolute; width: 100%; height: 100%; border-radius: 50%; box-shadow: inset -15px -15px 0 rgba(0, 0, 0, 0.15); }
+  #moon::after { content: ''; position: absolute; top: 30px; left: 30px; width: 20px; height: 20px; border-radius: 50%; background: rgba(0, 0, 0, 0.1); box-shadow: 30px 20px 0 rgba(0, 0, 0, 0.1), 10px 50px 0 rgba(0, 0, 0, 0.1); }
+  #splash-title { font-family: 'Press Start 2P', monospace; font-size: clamp(24px, 6vw, 50px); color: #fff; text-shadow: 4px 4px 0 #333; text-align: center; letter-spacing: 2px; }
+  @keyframes floatMoon { 0% { transform: translateY(0px); } 50% { transform: translateY(-15px); } 100% { transform: translateY(0px); } }
+
+  /* ---- MENU ---- */
+  #menu {
+    position: fixed; inset: 0; z-index: 2;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-family: 'Press Start 2P', monospace; user-select: none; padding: 20px;
+    opacity: 0; transition: opacity 1s;
+  }
+  #title-container { display: flex; flex-direction: column; align-items: center; margin-bottom: 30px; text-align: center; width: 100%; }
+  #title { font-size: clamp(20px, 5vw, 50px); color: #c8c8c8; text-shadow: 4px 4px 0 #555, 8px 8px 0 rgba(0,0,0,0.4); letter-spacing: 2px; line-height: 1.2; animation: floatTitle 4s ease-in-out infinite; }
+  @keyframes floatTitle { 0% { transform: translateX(-8px) rotate(-1deg); } 50% { transform: translateX(8px) rotate(1deg); } 100% { transform: translateX(-8px) rotate(-1deg); } }
+  #subtitle { font-size: clamp(8px, 2vw, 14px); color: #ffff55; text-shadow: 2px 2px 0 #000; margin-top: 10px; transform: rotate(-4deg); animation: floatSubtitle 4s ease-in-out infinite; }
+  @keyframes floatSubtitle { 0% { transform: translateX(8px) rotate(-4deg); } 50% { transform: translateX(-8px) rotate(-2deg); } 100% { transform: translateX(8px) rotate(-4deg); } }
+  
+  .btn {
+    width: 100%; max-width: 400px; padding: 16px 10px; margin: 6px 0;
+    font-family: 'Press Start 2P', monospace; font-size: clamp(10px, 2.5vw, 14px);
+    color: #fff; background: linear-gradient(#7a7a7a, #5a5a5a);
+    border: 3px solid #2b2b2b; border-top-color: #9a9a9a; border-left-color: #9a9a9a;
+    text-shadow: 2px 2px 0 #000; cursor: pointer; text-align: center;
+    transition: background 0.1s; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.5);
+  }
+  .btn:hover { background: linear-gradient(#8a8a8a, #6a6a6a); }
+  .btn:active { transform: translateY(2px); }
+
+  #btn-map {
+    background: linear-gradient(#4a7ec8, #2b5a9e);
+    border-top-color: #7aaaff; border-left-color: #7aaaff;
+  }
+  #btn-map:hover { background: linear-gradient(#5a8ed8, #3b6aae); }
+
+  .row { display: flex; gap: 10px; width: 100%; max-width: 400px; margin-top: 15px; }
+  .row .btn { width: 50%; margin: 0; padding: 16px 4px; font-size: clamp(8px, 2vw, 12px); }
+
+  /* ---- CONTADOR DE ACESSOS ---- */
+  #acessos {
+    margin-top: 20px;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 10px;
+    color: #55ff55;
+    text-shadow: 2px 2px 0 #000;
+    background: rgba(0,0,0,0.6);
+    padding: 8px 12px;
+    border-radius: 5px;
+    border: 2px solid #555;
+    display: inline-block;
+    animation: pulseGreen 2s infinite;
+  }
+  @keyframes pulseGreen { 0% { opacity: 0.8; } 50% { opacity: 1; text-shadow: 2px 2px 0 #000, 0 0 10px #55ff55; } 100% { opacity: 0.8; } }
+
+  #credits { margin-top: 20px; font-size: 9px; color: #aaa; text-shadow: 2px 2px 0 #000; letter-spacing: 1px; text-align: center; }
+
+  #footer {
+    position: fixed; bottom: 10px; left: 0; right: 0;
+    display: flex; justify-content: space-between; align-items: flex-end;
+    padding: 0 15px; font-family: 'Press Start 2P', monospace;
+    font-size: clamp(6px, 1.5vw, 10px); color: #fff; text-shadow: 2px 2px 0 #000;
+    pointer-events: none; z-index: 2; flex-wrap: wrap; gap: 10px;
+  }
+  #footer span { max-width: 48%; word-wrap: break-word; }
+  #footer span:last-child { text-align: right; }
+
+  #modal-overlay {
+    position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,0.8);
+    display: none; align-items: center; justify-content: center;
+    font-family: 'Press Start 2P', monospace; color: #fff;
+  }
+  #modal-box {
+    background: #3a3a3a; border: 4px solid #fff; border-right-color: #111; border-bottom-color: #111;
+    padding: 30px; width: 90%; max-width: 450px; display: flex; flex-direction: column; gap: 15px;
+  }
+  #modal-title { font-size: 14px; text-align: center; color: #ffaa00; text-shadow: 2px 2px 0 #000; }
+  #modal-desc { font-size: 9px; line-height: 1.5; color: #ccc; text-align: center; margin-bottom: 10px; }
+  #modal-input { padding: 12px; font-family: 'Press Start 2P', monospace; font-size: 12px; background: #000; border: 2px solid #777; color: #fff; outline: none; }
+  #modal-buttons { display: flex; gap: 10px; margin-top: 10px; }
+
+  #options {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+    display: none; flex-direction: column; align-items: center; justify-content: center;
+    font-family: 'Press Start 2P', monospace; color: #fff; z-index: 10; padding: 20px;
+  }
+  #options h2 { font-size: clamp(16px, 4vw, 24px); margin-bottom: 30px; text-shadow: 3px 3px 0 #000; }
+</style>
+</head>
+<body>
+
+<div id="splash-screen">
+  <div id="moon"></div>
+  <div id="splash-title">WORLD ENGINE</div>
+</div>
+
+<canvas id="bg"></canvas>
+
+<div id="menu">
+  <div id="title-container">
+    <div id="title">WORLDBOX<br>INFINITY</div>
+    <div id="subtitle">Explored by you!</div>
+  </div>
+
+  <button class="btn" id="btn-single">Novo Mundo</button>
+  <button class="btn" id="btn-load">Carregar Mundo</button>
+  <button class="btn" id="btn-map">Mapa Topológico</button>
+  <button class="btn" id="btn-multi">Multiplayer</button>
+
+  <div class="row">
+    <button class="btn" id="btn-options">Options...</button>
+    <button class="btn" id="btn-quit">Quit Game</button>
+  </div>
+
+  <!-- O CONTADOR AQUI -->
+  <div id="acessos">👁️ Carregando...</div>
+
+  <div id="credits">Created by World Engine</div>
+</div>
+
+<div id="modal-overlay">
+  <div id="modal-box">
+    <div id="modal-title">CARREGAR PROGRESSO</div>
+    <div id="modal-desc">Digite o nome exato do mundo que você quer carregar.</div>
+    <input type="text" id="modal-input" placeholder="Ex: Meu Mundo">
+    <div id="modal-buttons">
+      <button class="btn" style="font-size:10px; padding:10px;" id="modal-confirm">Carregar</button>
+      <button class="btn" style="font-size:10px; padding:10px;" id="modal-cancel">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div id="options">
+  <h2>OPTIONS</h2>
+  <button class="btn" id="btn-open-graphics" style="margin-bottom: 20px;">Escolher Gráficos</button>
+  <div id="graphics-submenu" style="display: none; flex-direction: column; align-items: center; width: 100%;">
+    <h2 style="font-size: 14px; margin-bottom: 10px;">API Gráfica</h2>
+    <button class="btn" id="btn-webgl">WebGL (Estável)</button>
+    <button class="btn" id="btn-webgpu" style="background: linear-gradient(#6a6ac8, #4a4aa8);">WebGPU (Beta)</button>
+    <p style="font-size: 9px; color: #ffaa00; text-align: center; margin: 15px 10px; line-height: 1.6; text-shadow: 1px 1px 0 #000; font-family: monospace; max-width: 350px;">
+      Recomenda-se usar WebGL para gráficos mais estáveis.<br>O WebGPU pode demorar mais para carregar.
+    </p>
+    <button class="btn" id="btn-back-graphics" style="margin-top: 5px; font-size: 10px;">Voltar</button>
+  </div>
+  <button class="btn" id="btn-back">Back</button>
+</div>
+
+<div id="footer">
+  <span>WorldBox Infinity<br>0.1.0</span>
+  <span>© 2026 WorldBox<br>Studio</span>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+// ================== CENA 3D (FUNDO DO MENU) ==================
+const canvas = document.getElementById('bg');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87CEEB);
+scene.fog = new THREE.Fog(0x87CEEB, 60, 160);
+const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.1, 500);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+const sun = new THREE.DirectionalLight(0xffffff, 1.0);
+sun.position.set(50, 80, 30);
+scene.add(sun);
+
+const WORLD = 40;
+const worldGroup = new THREE.Group();
+scene.add(worldGroup);
+const COLORS = { grass: 0x4caf50, dirt: 0x8b5a2b, stone: 0x808080, sand: 0xE6D8A8, water: 0x2b6cb0, snow: 0xf0f0f0 };
+
+function makeBlock(color) { return new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial({ color })); }
+function heightAt(x, z) { return Math.floor(4 + Math.sin(x * 0.3) * 1.5 + Math.cos(z * 0.25) * 1.5 + Math.sin((x + z) * 0.15) * 1.0); }
+function biomeColor(x, z) { const n = Math.sin(x * 0.2) * Math.cos(z * 0.2); if (n > 0.4) return 'sand'; if (n < -0.4) return 'snow'; return 'grass'; }
+
+for (let x = -WORLD / 2; x < WORLD / 2; x++) {
+  for (let z = -WORLD / 2; z < WORLD / 2; z++) {
+    const h = heightAt(x, z);
+    const biome = biomeColor(x, z);
+    const top = makeBlock(COLORS[biome === 'sand' ? 'sand' : biome === 'snow' ? 'snow' : 'grass']);
+    top.position.set(x, h, z);
+    worldGroup.add(top);
+    for (let y = h - 1; y >= Math.max(0, h - 2); y--) { const d = makeBlock(COLORS.dirt); d.position.set(x, y, z); worldGroup.add(d); }
+    for (let y = h - 3; y >= 0; y--) { const s = makeBlock(COLORS.stone); s.position.set(x, y, z); worldGroup.add(s); }
+    if (h < 3 && biome !== 'snow') {
+      const w = new THREE.Mesh(new THREE.BoxGeometry(1, 0.9, 1), new THREE.MeshLambertMaterial({ color: COLORS.water, transparent: true, opacity: 0.7 }));
+      w.position.set(x, 2.5, z); worldGroup.add(w);
+    }
+  }
+}
+
+let t = 0;
+function animateMenu() {
+  requestAnimationFrame(animateMenu);
+  t += 0.001;
+  camera.position.x = Math.cos(t) * 55;
+  camera.position.z = Math.sin(t) * 55;
+  camera.position.y = 28 + Math.sin(t * 0.7) * 3;
+  camera.lookAt(0, 6, 0);
+  renderer.render(scene, camera);
+}
+animateMenu();
+
+setTimeout(() => { document.dispatchEvent(new Event('worldReady')); }, 1000); 
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+// ================== LÓGICA DA UI ==================
+const optionsPanel = document.getElementById('options');
+const graphicsSubmenu = document.getElementById('graphics-submenu');
+const btnOpenGraphics = document.getElementById('btn-open-graphics');
+const btnBackGraphics = document.getElementById('btn-back-graphics');
+const modalOverlay = document.getElementById('modal-overlay');
+const modalInput = document.getElementById('modal-input');
+
+document.getElementById('btn-single').onclick = () => window.location.href = 'criar_mundo.html';
+document.getElementById('btn-load').onclick = () => { modalOverlay.style.display = 'flex'; modalInput.value = ''; };
+document.getElementById('modal-cancel').onclick = () => { modalOverlay.style.display = 'none'; };
+
+document.getElementById('modal-confirm').onclick = () => {
+  const worldName = modalInput.value.trim();
+  if (!worldName) { alert("Por favor, digite o nome do mundo!"); return; }
+  localStorage.setItem('loadTarget', worldName);
+  window.location.href = 'jogo.html';
+};
+
+document.getElementById('btn-map').onclick = () => { window.location.href = 'mapa.html'; };
+document.getElementById('btn-multi').onclick = () => alert('Multiplayer — em breve!');
+document.getElementById('btn-options').onclick = () => { optionsPanel.style.display = 'flex'; };
+document.getElementById('btn-back').onclick = () => { optionsPanel.style.display = 'none'; };
+document.getElementById('btn-quit').onclick = () => { 
+  if (confirm('Sair do WorldBox Infinity?')) document.body.innerHTML = '<div style="color:#fff;font-family:monospace;padding:40px;font-size:20px;text-align:center;margin-top:50vh;transform:translateY(-50%)">Você saiu.</div>';
+};
+
+btnOpenGraphics.onclick = () => { graphicsSubmenu.style.display = 'flex'; btnOpenGraphics.style.display = 'none'; document.getElementById('btn-back').style.display = 'none'; };
+btnBackGraphics.onclick = () => { graphicsSubmenu.style.display = 'none'; btnOpenGraphics.style.display = 'block'; document.getElementById('btn-back').style.display = 'block'; };
+
+document.getElementById('btn-webgl').onclick = () => {
+  localStorage.setItem('graphicsApi', 'webgl');
+  alert("WebGL selecionado! O jogo vai iniciar com ele.");
+  btnBackGraphics.click();
+};
+document.getElementById('btn-webgpu').onclick = () => {
+  if (!navigator.gpu) {
+    alert("Seu celular/navegador não suporta WebGPU! O jogo usará WebGL por padrão.");
+    localStorage.setItem('graphicsApi', 'webgl');
+  } else {
+    localStorage.setItem('graphicsApi', 'webgpu');
+    alert("WebGPU (Beta) selecionado! Lembre-se: pode demorar um pouco mais para carregar.");
+  }
+  btnBackGraphics.click();
+};
+</script>
+
+<!-- Script do Contador de Acessos -->
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const contadorEl = document.getElementById('acessos');
+    
+    // API CounterAPI
+    fetch('https://api.counterapi.dev/v1/worldbox-infinity/visitas/up')
+      .then(response => response.json())
+      .then(data => {
+        contadorEl.innerText = `👁️ ${data.count} acessos`;
+      })
+      .catch(error => {
+        console.error("Erro no contador:", error);
+        contadorEl.innerText = `👁️ --- acessos`;
+      });
+  });
+</script>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const splash = document.getElementById('splash-screen');
+    const menu = document.getElementById('menu');
+
+    document.addEventListener('worldReady', () => {
+      setTimeout(() => {
+        splash.style.opacity = '0';
+        setTimeout(() => {
+          splash.style.display = 'none';
+          menu.style.opacity = '1';
+        }, 1000);
+      }, 2500);
+    });
+  });
+</script>
+<!-- Script do Contador Gambiarra (Para não ficar "undefined") -->
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const contadorEl = document.getElementById('acessos');
+    
+    let acessos = localStorage.getItem('worldbox_acessos');
+    
+    if (!acessos) {
+      acessos = 1; 
+    } else {
+      acessos = parseInt(acessos) + 1; 
+    }
+    
+    localStorage.setItem('worldbox_acessos', acessos);
+    
+    // Verifica se o número é válido, se não for, mostra um fallback
+    if (isNaN(acessos)) {
+      contadorEl.innerText = `👁️ 1 acesso`;
+    } else {
+      contadorEl.innerText = `👁️ ${acessos} acessos no seu dispositivo`;
+    }
+  });
+</script>
+</body>
+</html>
