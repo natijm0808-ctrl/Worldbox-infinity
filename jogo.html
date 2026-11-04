@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Jogando - WorldBox Infinity</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<!-- IMPORTANDO O DOMPURIFY -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+  canvas { display: block; }
+
+  #loading-screen {
+    position: fixed; inset: 0; z-index: 100;
+    background: #2b2b2b; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    font-family: 'Press Start 2P', monospace; color: #fff;
+    transition: opacity 0.5s;
+  }
+  #loading-text { font-size: 14px; margin-bottom: 20px; text-shadow: 2px 2px 0 #000; text-align: center; line-height: 1.5; }
+  #loading-bar-container { width: 300px; height: 20px; background: #111; border: 2px solid #fff; padding: 2px; }
+  #loading-bar { height: 100%; width: 0%; background: #55ff55; transition: width 0.2s; }
+
+  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 10; display: none; }
+  
+  #crosshair {
+    position: absolute; top: 50%; left: 50%; width: 20px; height: 20px; margin: -10px 0 0 -10px;
+    background: linear-gradient(to right, transparent 45%, #fff 45%, #fff 55%, transparent 55%),
+                linear-gradient(to bottom, transparent 45%, #fff 45%, #fff 55%, transparent 55%);
+    mix-blend-mode: difference;
+  }
+
+  #coords {
+    position: absolute; top: 15px; left: 15px;
+    font-family: 'Press Start 2P', monospace; font-size: 10px; color: #fff;
+    text-shadow: 2px 2px 0 #000; background: rgba(0,0,0,0.4);
+    padding: 8px; border-radius: 4px; line-height: 1.5; pointer-events: none;
+  }
+
+  #status-bars {
+    position: absolute; bottom: 75px; left: 50%; transform: translateX(-50%);
+    display: none; flex-direction: column; gap: 4px; width: 350px;
+  }
+  .stat-row { display: flex; justify-content: space-between; font-size: 20px; text-shadow: 2px 2px 0 #000; line-height: 1; }
+  .stat-group { display: flex; gap: 1px; }
+  .heart, .bubble { filter: drop-shadow(1px 1px 0 #000); }
+
+  #joystick-left, #joystick-right {
+    position: absolute; bottom: 40px; width: 120px; height: 120px;
+    background: rgba(255, 255, 255, 0.1); border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%; pointer-events: auto;
+  }
+  #joystick-left { left: 30px; }
+  #joystick-right { right: 30px; }
+
+  .stick {
+    position: absolute; top: 50%; left: 50%; width: 50px; height: 50px;
+    margin: -25px 0 0 -25px; background: rgba(255, 255, 255, 0.5);
+    border-radius: 50%; pointer-events: none;
+  }
+
+  #btn-jump, #btn-hit, #btn-place, #btn-fly {
+    position: absolute; width: 65px; height: 65px;
+    background: rgba(255, 255, 255, 0.2); border: 2px solid rgba(255, 255, 255, 0.5);
+    border-radius: 50%; color: #fff; font-family: 'Press Start 2P', monospace;
+    font-size: 10px; pointer-events: auto;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #btn-jump { right: 30px; bottom: 180px; }
+  #btn-hit { right: 110px; bottom: 180px; }
+  #btn-place { right: 30px; bottom: 260px; background: rgba(85, 255, 85, 0.2); border: 2px solid rgba(85, 255, 85, 0.6); }
+  #btn-fly { right: 30px; bottom: 340px; background: rgba(85, 170, 255, 0.2); border: 2px solid rgba(85, 170, 255, 0.6); display: none; }
+
+  #btn-jump:active, #btn-hit:active { background: rgba(255, 255, 255, 0.5); }
+  #btn-place:active { background: rgba(85, 255, 85, 0.5); }
+  #btn-fly:active, #btn-fly.active { background: rgba(85, 170, 255, 0.6); border-color: #fff; }
+
+  #hotbar {
+    position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 2px; background: rgba(0,0,0,0.5); padding: 2px; border: 2px solid #555;
+    pointer-events: auto;
+  }
+  .slot {
+    width: 40px; height: 40px; background: rgba(139, 139, 139, 0.5);
+    border: 2px solid #373737; border-top-color: #8b8b8b; border-left-color: #8b8b8b;
+    position: relative; display: flex; align-items: center; justify-content: center;
+  }
+  .slot.active { border: 2px solid #fff; }
+  #slot-menu { font-size: 24px; color: #fff; cursor: pointer; display: none; } /* Escondido por padrão */
+
+  /* INVENTÁRIO CRIATIVO */
+  #creative-menu {
+    position: fixed; inset: 0; z-index: 50;
+    background: rgba(0,0,0,0.85); display: none;
+    flex-direction: column; align-items: center; justify-content: center;
+    font-family: 'Press Start 2P', monospace; color: #fff;
+    pointer-events: auto;
+  }
+  #creative-panel {
+    background: #c6c6c6; border: 4px solid #fff; border-right-color: #555; border-bottom-color: #555;
+    padding: 20px; display: flex; flex-direction: column; gap: 10px;
+    width: 90%; max-width: 400px;
+  }
+  .creative-title { color: #3c3c3c; font-size: 12px; margin-bottom: 10px; text-align: center; }
+  .creative-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+  }
+  .creative-item {
+    aspect-ratio: 1; background: #8b8b8b; border: 2px solid #373737; border-top-color: #fff; border-left-color: #fff;
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+  }
+  .creative-item:active { border-top-color: #373737; border-left-color: #373737; border-bottom-color: #fff; border-right-color: #fff; }
+  
+  .icon-block { width: 30px; height: 30px; border: 1px solid #000; }
+  .icon-grass { background: linear-gradient(#5ca845 30%, #7a5c3a 30%); }
+  .icon-dirt { background: #7a5c3a; }
+  .icon-stone { background: #888888; }
+  .icon-water { background: #3a79bd; }
+  
+  .icon-egg {
+    width: 24px; height: 30px; background: #fff;
+    border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
+    position: relative;
+  }
+  .icon-egg::before {
+    content: ''; position: absolute; top: 5px; left: 5px;
+    width: 6px; height: 6px; background: #3b2b20; border-radius: 50%;
+  }
+  .icon-egg::after {
+    content: ''; position: absolute; bottom: 8px; right: 6px;
+    width: 8px; height: 8px; background: #3b2b20; border-radius: 50%;
+  }
+  
+  #btn-close-creative {
+    padding: 10px; background: #555; color: #fff; border: 2px solid #333; font-family: inherit; font-size: 10px; cursor: pointer; margin-top: 10px;
+  }
+</style>
+</head>
+<body>
+
+<div id="loading-screen">
+  <div id="loading-text">Carregando terreno...</div>
+  <div id="loading-bar-container"><div id="loading-bar"></div></div>
+</div>
+
+<div id="hud">
+  <div id="crosshair"></div>
+  <div id="coords">X: 0<br>Y: 0<br>Z: 0</div>
+
+  <div id="status-bars">
+    <div class="stat-row" id="bubble-row" style="display: none;">
+      <div class="stat-group" id="bubbles"></div>
+    </div>
+    <div class="stat-row" id="heart-row">
+      <div class="stat-group" id="hearts"></div>
+    </div>
+  </div>
+
+  <div id="joystick-left"><div class="stick" id="stick-left"></div></div>
+  <div id="joystick-right"><div class="stick" id="stick-right"></div></div>
+  
+  <button id="btn-jump">Pulo</button>
+  <button id="btn-hit">Bater</button>
+  <button id="btn-place">Pôr</button>
+  <button id="btn-fly">Voar</button>
+
+  <div id="hotbar">
+    <div class="slot active" data-block=""></div><div class="slot" data-block=""></div><div class="slot" data-block=""></div>
+    <div class="slot" data-block=""></div><div class="slot" data-block=""></div><div class="slot" data-block=""></div>
+    <div class="slot" data-block=""></div><div class="slot" data-block=""></div>
+    <div class="slot" id="slot-menu" style="color:#fff; font-size:20px;">...</div>
+  </div>
+</div>
+
+<div id="creative-menu">
+  <div id="creative-panel">
+    <div class="creative-title">INVENTÁRIO CRIATIVO</div>
+    <div class="creative-grid">
+      <div class="creative-item" data-type="grass"><div class="icon-block icon-grass"></div></div>
+      <div class="creative-item" data-type="dirt"><div class="icon-block icon-dirt"></div></div>
+      <div class="creative-item" data-type="stone"><div class="icon-block icon-stone"></div></div>
+      <div class="creative-item" data-type="water"><div class="icon-block icon-water"></div></div>
+      <div class="creative-item" data-type="cow"><div class="icon-egg"></div></div>
+    </div>
+    <button id="btn-close-creative">Fechar</button>
+  </div>
+</div>
+
+<canvas id="game-canvas"></canvas>
+
+<script type="module" src="engine.js"></script>
+<script type="module" src="player.js"></script>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const config = JSON.parse(localStorage.getItem('worldConfig'));
+    if (config) document.title = `${config.name} - WorldBox Infinity`;
+
+    const bar = document.getElementById('loading-bar');
+    const text = document.getElementById('loading-text');
+    const screen = document.getElementById('loading-screen');
+    const hud = document.getElementById('hud');
+
+    // ==== LÓGICA DO MODO CRIATIVO ====
+    const isCreative = config && config.gamemode === 'creative';
+    const slotMenu = document.getElementById('slot-menu');
+    const creativeMenu = document.getElementById('creative-menu');
+
+    // Só mostra o botão de 3 pontinhos se for criativo
+    if (isCreative) {
+      slotMenu.style.display = 'flex';
+    } else {
+      creativeMenu.style.display = 'none'; // Garante que tá escondido no survival
+    }
+
+    if (localStorage.getItem('graphicsApi') === 'webgpu') {
+      text.innerHTML = 'Compilando WebGPU...<br><span style="font-size:10px; color:#aaa;">(Pode demorar um pouco mais)</span>';
+    }
+
+    setTimeout(() => { bar.style.width = '50%'; }, 500);
+    setTimeout(() => { bar.style.width = '100%'; text.innerText = 'Pronto!'; }, 1200);
+    
+    setTimeout(() => {
+      screen.style.opacity = '0';
+      setTimeout(() => { 
+        screen.style.display = 'none'; 
+        hud.style.display = 'block'; 
+      }, 500);
+    }, 1800);
+
+    // Controles do menu
+    const btnClose = document.getElementById('btn-close-creative');
+    const creativeItems = document.querySelectorAll('.creative-item');
+
+    slotMenu.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      if (isCreative) creativeMenu.style.display = 'flex';
+    });
+
+    btnClose.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      creativeMenu.style.display = 'none';
+    });
+
+    creativeItems.forEach(item => {
+      item.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        const type = item.getAttribute('data-type');
+        document.dispatchEvent(new CustomEvent('creativeSelect', { detail: type }));
+        creativeMenu.style.display = 'none';
+      });
+    });
+
+    const slots = document.querySelectorAll('.slot');
+    slots.forEach(slot => {
+      if (slot.id === 'slot-menu') return;
+      slot.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        slots.forEach(s => s.classList.remove('active'));
+        slot.classList.add('active');
+      });
+    });
+  });
+</script>
+</body>
+</html>
