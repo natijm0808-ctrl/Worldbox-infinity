@@ -26,14 +26,14 @@
   #hud { position: fixed; inset: 0; pointer-events: none; z-index: 10; display: none; }
   
   /* Botão de Pause */
-  #btn-pause {
-    position: absolute; top: 15px; right: 15px;
-    width: 50px; height: 50px;
-    background: rgba(0,0,0,0.5); border: 2px solid #fff; border-radius: 8px;
-    color: #fff; font-family: 'Press Start 2P', monospace; font-size: 16px;
-    pointer-events: auto; cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-  }
+#btn-pause {
+  position: absolute; top: 15px; right: 15px;
+  width: 70px; height: 70px;
+  background: RED; /* TESTE: BOTÃO VERMELHO */
+  border: 3px solid #fff; border-radius: 10px;
+  color: #fff; font-size: 20px; z-index: 9999; /* z-index alto pra ficar na frente de tudo */
+  pointer-events: auto; cursor: pointer;
+}
   #btn-pause:active { background: rgba(255,255,255,0.3); }
 
   #crosshair {
